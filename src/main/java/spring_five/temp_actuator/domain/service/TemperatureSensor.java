@@ -1,43 +1,34 @@
 package spring_five.temp_actuator.domain.service;
 
 import java.util.Random;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import javax.annotation.PostConstruct;
-
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+import rx.Observable;
 import spring_five.temp_actuator.domain.model.Temperature;
 
 @Component
 public class TemperatureSensor {
 
-	private final ApplicationEventPublisher publisher;
-	private final Random rdm = new Random();
-	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+	private final Random rnd  = new Random();
+
+	public final Observable<Temperature> dataStream = Observable.range(0, Integer.MAX_VALUE)
+																.concatMap(this::concatTemperature)
+																.publish()
+																.refCount();
 	
-	public TemperatureSensor(ApplicationEventPublisher publisher) {
-		super();
-		this.publisher = publisher;
+	private Temperature probe() {
+		return new Temperature(16 + rnd.nextGaussian() * 10);
 	}
 	
-	@PostConstruct
-	public void startProcessing() {
-		this.executor.schedule(this::probe, 1, TimeUnit.SECONDS);
+	public Observable<Temperature> temperatureStream() {
+		return dataStream;
 	}
 	
-	private void probe() {
-		
-		double temperature = 16 + rdm.nextGaussian() * 10;
-		publisher.publishEvent(new Temperature(temperature));
-		
-		//schedule the next read after some random delay (0-5 seconds)
-		executor.schedule(this::probe, rdm.nextInt(), TimeUnit.MILLISECONDS);
-		
-	}
-	
+	private Observable<Temperature> concatTemperature(int tick) {
+		return Observable.just(tick)
+					     .delay(rnd.nextInt(5000), TimeUnit.MILLISECONDS)
+					     .map(tickValue -> this.probe());
+	} 
 	
 }
